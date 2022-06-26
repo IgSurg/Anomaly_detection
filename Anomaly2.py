@@ -28,14 +28,18 @@ class Monitor:
         self.server_name = server_name
         self.dfbase = dfbase
         """
+        Формат входных данных:
+        
+        server_name - имя сервера, данные которого обрабатываются
+        
         dfbase - DataFrame
         Формат входных данных dfbase - DataFrame c индексом по времени и нормализованными к 100 значениями метрики
         пример:
         p_time 	                CPU
         2018-10-22 00:00:25 	60.63
         
-        nwindow - размер окна сглаживания по количеству точек времени в dfbase
-        doverinterval - размер доверительного интервала
+        nwindow - размер окна сглаживания по количеству точек времени в dfbase, по умолчанию - 120
+        doverinterval - размер доверительного интервала, по умолчанию - 2
         debug - если значение > 0, то отображается plt
         
         Результат: dataFrame верхнего и нижнего доверительного интервала self.upper_bond и self.lower_bond
@@ -63,21 +67,25 @@ class Monitor:
 
 
 
-    def anomaly(self,dfcheck,debug = 0):
+    def anomaly(self,dfcheck,input_anomal_count = 3,debug = 0):
         """
+        Формат входных данных:
+
         dfbase - DataFrame
-        Формат входных данных dfbase - DataFrame c индексом по времени и нормализованными к 100 значениями метрики
+         dfbase - DataFrame c индексом по времени и нормализованными к 100 значениями метрики
                 пример:
                 p_time 	                CPU
                 2018-10-22 00:00:25 	60.63
+         input_anomal_count - количество непрерывных вхождений точек вне доверительного интервала для детектирования аномалии, по умолчанию - 3
 
                 Результат: dataFrame
-                p_time 	                CPU     Anomal
+                p_time 	                CPU     Anomaly
                 2018-10-22 00:00:25 	60.63   True|False
         """
         self._dfcheck = dfcheck
-        self._dfcheck['Anomal'] = False
+        self._dfcheck['Anomaly'] = False
 
+        input_count = 0
         for i in range(len(self._dfcheck)):
             t = self._dfcheck.index[i] - datetime.timedelta(7)
             max_value_mean = (self.upper_bond[self.upper_bond.index > t].values[0] + self.upper_bond[self.upper_bond.index < t].values[
@@ -85,18 +93,25 @@ class Monitor:
             min_value_mean = (self.lower_bond[self.lower_bond.index > t].values[0] + self.lower_bond[self.lower_bond.index < t].values[
                 -1]) / 2
 
-            anomal = np.hstack(((self._dfcheck.iloc[i, 0] > max_value_mean), (self._dfcheck.iloc[i, 0] < min_value_mean)))
-            self._dfcheck.iloc[i, 1] = anomal.any()
-            pass
+            # anomal = np.hstack(((self._dfcheck.iloc[i, 0] > max_value_mean), (self._dfcheck.iloc[i, 0] < min_value_mean)))
+            # self._dfcheck.iloc[i, 1] = anomal.any()
+
+            if (self._dfcheck.iloc[i, 0] > max_value_mean) or (self._dfcheck.iloc[i, 0] < min_value_mean):
+                input_count += 1
+                if input_count >= input_anomal_count:
+                    self._dfcheck.iloc[i, 1] = True
+            else:
+                input_count = 0
+
 
             #####################################
             if debug > 0:
-                plt.figure(figsize=(15, 5))
-                plt.title("Moving average")
-                plt.plot(self._dfcheck.iloc[:, 0], "g", label="Rolling")
+                print('Server name is {}'.format(self.server_name))
+                print ('self._dfcheck \n',self._dfcheck.head())
 
-                plt.legend(loc="upper left")
-                plt.grid(True)
+                colors = np.where(df.iloc[:, 1].values == False, 'b', 'r')
+                plt.figure(figsize=(15, 5))
+                plt.scatter(df.index.values, df.iloc[:, 0].values, s=10, c=colors)
                 plt.show()
 
         return self.server_name, self._dfcheck
@@ -156,13 +171,11 @@ def main():
     print(server_name)
 
 ####################################################################################
-#    plt.figure(figsize=(15, 5))
-#    plt.title("Moving average")
-#    plt.plot(df_check_anomaly.iloc[:,0], "g", label="Rolling")
-
-#    plt.legend(loc="upper left")
-#    plt.grid(True)
-#    plt.show()
+### отображение df_check_anomaly
+    colors = np.where(df_check_anomaly.iloc[:, 1].values == False, 'b', 'r')
+    plt.figure(figsize=(15, 5))
+    plt.scatter(df_check_anomaly.index.values, df_check_anomaly.iloc[:, 0].values, s=10, c=colors)
+    plt.show()
     pass
 
 
